@@ -1,0 +1,45 @@
+version: "3.3"
+
+services:
+  traefik:
+    image: "traefik:v2.6"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true" # new
+      - "--certificatesresolvers.myresolver.acme.email=veikko@toast.fi" # new
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json" # new
+    ports:
+      - "8081:80"
+      - "8082:8080"
+      - "8443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+
+  whoami:
+    image: "traefik/whoami"
+    scale: 5
+    labels: 
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`localhost`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.port=8443"
+      - "traefik.http.routers.whoami.middlewares=redirect-to-https@docker"
+      - "traefik.http.routers.whoami-secured.rule=Host(`localhost`)"
+      - "traefik.http.routers.whoami-secured.entrypoints=websecure"
+      - "traefik.http.routers.whoami-secured.tls=true"
+      - "traefik.http.routers.whoami-secured.tls.certresolver=myresolver"
+
+  whoami2:
+    image: "nginxdemos/hello"
+    scale: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami2.rule=Host(`localhost`) && Path(`/whoami2`)"
+      - "traefik.http.routers.whoami2.entrypoints=web"
